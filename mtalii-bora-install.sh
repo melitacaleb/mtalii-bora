@@ -4,10 +4,10 @@
 #   bash mtalii-bora-install.sh --push "msg"     # install, commit and push to GitHub
 set -e
 REPO="${MB_REPO:-https://github.com/melitacaleb/mtalii-bora.git}"
-PUSH=0; MSG="Mtalii Bora: PHP + Bootstrap app with service categories, role dashboards and provider onboarding"
+PUSH=0; MSG="Mtalii Bora: homepage segments, collapsible sidebar, login-gated services, provider onboarding"
 if [ "$1" = "--push" ]; then PUSH=1; [ -n "$2" ] && MSG="$2"; fi
 echo "Installing into: $(pwd)"
-# remove files from the earlier SQLite/MySQL version and refresh app folders
+# remove files from earlier versions and refresh app folders
 rm -rf public server data pages includes assets scripts/reset-db.sh scripts/setup-git.sh
 cat > "README.md" <<'__MB_EOF__'
 # Mtalii Bora — PHP + Bootstrap prototype (no database yet)
@@ -47,13 +47,24 @@ h1,h2,h3,h4,.brand{font-family:'Playfair Display',Georgia,serif}
 .timeline{border-left:3px solid var(--a);padding-left:18px}.timeline .item{position:relative;margin-bottom:14px}.timeline .item:before{content:'';position:absolute;left:-26px;top:6px;width:12px;height:12px;border-radius:50%;background:var(--a)}
 .wiz .pill{background:var(--bs-secondary-bg);color:var(--bs-body-color);padding:.5rem 1rem;font-weight:500}.wiz .pill.active{background:var(--a);color:#fff}
 .svc{text-decoration:none;color:inherit;display:block}.svc i{font-size:1.8rem;color:var(--a)}.svc:hover{transform:translateY(-3px)}.svc{transition:.15s}
+.sidebar{transition:width .2s}
+@media(min-width:992px){
+ [data-side=collapsed] .sidebar{width:76px}
+ [data-side=collapsed] .lbl,[data-side=collapsed] .userchip{display:none}
+ [data-side=collapsed] .nav-h{font-size:0;height:1px;background:#ffffff26;margin:10px 14px;overflow:hidden}
+ [data-side=collapsed] .nav-i{text-align:center;padding:10px 0}[data-side=collapsed] .nav-i i{margin:0;font-size:1.2rem}
+ [data-side=collapsed] .sb-head{flex-direction:column;padding:0!important}[data-side=collapsed] .brand{padding:18px 0 4px}
+}
+#collapseBtn i{transition:transform .2s}[data-side=collapsed] #collapseBtn i{transform:rotate(180deg)}
+.aud i{font-size:2.2rem;color:var(--a)}.soon{opacity:.75;border-style:dashed}.step-n{width:38px;height:38px;border-radius:50%;background:var(--a);color:#fff;display:grid;place-items:center;font-weight:700;margin:0 auto 8px}
 __MB_EOF__
 mkdir -p "assets/js"
 cat > "assets/js/app.js" <<'__MB_EOF__'
 const root = document.documentElement, btn = document.getElementById('themeBtn');
-const paint = () => btn.innerHTML = root.dataset.bsTheme === 'dark' ? '<i class="bi bi-sun"></i> Light mode' : '<i class="bi bi-moon-stars"></i> Dark mode';
+const paint = () => btn.innerHTML = root.dataset.bsTheme === 'dark' ? '<i class="bi bi-sun"></i><span class="lbl"> Light mode</span>' : '<i class="bi bi-moon-stars"></i><span class="lbl"> Dark mode</span>';
 btn.onclick = () => { root.dataset.bsTheme = root.dataset.bsTheme === 'dark' ? 'light' : 'dark'; localStorage.setItem('theme', root.dataset.bsTheme); paint(); };
 paint();
+document.getElementById('collapseBtn').onclick = () => { root.dataset.side = root.dataset.side === 'collapsed' ? 'open' : 'collapsed'; localStorage.setItem('side', root.dataset.side); };
 document.querySelectorAll('form[data-demo]').forEach(f => f.addEventListener('submit', e => { e.preventDefault(); bootstrap.Toast.getOrCreateInstance(document.getElementById('demoToast')).show(); }));
 document.querySelectorAll('.wiz').forEach(w => {
   const s = [...w.querySelectorAll('.step')], p = [...w.querySelectorAll('.pill')], q = c => w.querySelector(c); let i = 0;
@@ -121,7 +132,7 @@ $trips = [['bookings','calendar-check','Bookings'],['bookings&tab=history','cloc
 if ($role == 'traveler') $nav = ['Explore'=>array_merge([['dashboard','compass','Explore home']], $explore), 'My trips'=>$trips];
 elseif ($role == 'guide' || $role == 'driver') $nav = ['Provider'=>[['pro','speedometer2','Dashboard'],['verification','patch-check','Verification'],['provider&id=' . ($role == 'guide' ? 1 : 2),'calendar3','My profile & availability'],['bookings','calendar-check','Booking requests'],['messages','chat-dots','Messages'],['reviews','star','Reviews'],['notifications','bell','Notifications']]];
 elseif ($role == 'admin') $nav = ['Admin'=>[['admin','shield-lock','Administration'],['security','activity','Security & audit']], 'Browse'=>$explore];
-else $nav = ['Explore'=>array_merge([['home','house','Home']], $explore), 'Traveler'=>[['signup','person-plus','Create account'],['login','box-arrow-in-right','Login']],
+else $nav = ['Welcome'=>[['home','house','Home'],['home#services','grid','Our services'],['destinations','map','Destinations']], 'Travelers'=>[['signup','person-plus','Create account'],['login','box-arrow-in-right','Login']],
   'Provider onboarding'=>[['join','briefcase','Overview'],['guide_signup','compass','Tour guide sign-up'],['driver_signup','truck-front','Driver sign-up']]];
 $cur = $p . (isset($_GET['tab']) ? '&tab=' . $_GET['tab'] : '') . (isset($_GET['type']) && $p == 'search' ? '&type=' . $_GET['type'] : '') . (isset($_GET['id']) && $p == 'provider' ? '&id=' . (int)$_GET['id'] : '');
 ?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -130,13 +141,14 @@ $cur = $p . (isset($_GET['tab']) ? '&tab=' . $_GET['tab'] : '') . (isset($_GET['
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <link href="assets/css/style.css" rel="stylesheet">
-<script>document.documentElement.dataset.bsTheme=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')</script></head>
+<script>document.documentElement.dataset.bsTheme=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.dataset.side=localStorage.getItem('side')||'open'</script></head>
 <body><div class="d-flex">
 <aside class="offcanvas-lg offcanvas-start sidebar" tabindex="-1" id="side"><div class="offcanvas-header d-lg-none"><button class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button></div>
-<a class="brand" href="?p=<?= $u ? $landing[$u['role']] : 'home' ?>">🦒 Mtalii <b>Bora</b></a>
+<div class="sb-head d-flex align-items-center justify-content-between pe-2"><a class="brand" href="?p=<?= $u ? $landing[$u['role']] : 'home' ?>">🦒<span class="lbl"> Mtalii <b>Bora</b></span></a>
+<button id="collapseBtn" class="btn btn-sm text-white d-none d-lg-inline" title="Collapse / expand sidebar" aria-label="Collapse sidebar"><i class="bi bi-chevron-double-left"></i></button></div>
 <nav class="px-2 flex-grow-1 overflow-auto"><?php foreach ($nav as $group => $items): ?><div class="nav-h"><?= e($group) ?></div>
-<?php foreach ($items as $i): $key = explode('#', $i[0])[0]; ?><a class="nav-i <?= $key === $cur ? 'on' : '' ?>" href="?p=<?= $i[0] ?>"><i class="bi bi-<?= $i[1] ?>"></i> <?= e($i[2]) ?></a><?php endforeach; endforeach; ?></nav>
-<div class="p-3"><?php if ($u): ?><div class="small mb-2"><i class="bi bi-person-circle"></i> <?= e($u['name']) ?> <span class="badge text-bg-light"><?= e($u['role']) ?></span></div><a href="?p=logout" class="btn btn-sm btn-light w-100 mb-2">Logout</a><?php endif; ?><button id="themeBtn" class="btn btn-sm btn-outline-light w-100"></button></div></aside>
+<?php foreach ($items as $i): $key = explode('#', $i[0])[0]; ?><a class="nav-i <?= $key === $cur ? 'on' : '' ?>" href="?p=<?= $i[0] ?>" title="<?= e($i[2]) ?>"><i class="bi bi-<?= $i[1] ?>"></i><span class="lbl"> <?= e($i[2]) ?></span></a><?php endforeach; endforeach; ?></nav>
+<div class="p-3"><?php if ($u): ?><div class="small mb-2 userchip"><i class="bi bi-person-circle"></i> <?= e($u['name']) ?> <span class="badge text-bg-light"><?= e($u['role']) ?></span></div><a href="?p=logout" class="btn btn-sm btn-light w-100 mb-2" title="Logout"><i class="bi bi-box-arrow-right"></i><span class="lbl"> Logout</span></a><?php endif; ?><button id="themeBtn" class="btn btn-sm btn-outline-light w-100" title="Toggle dark mode"></button></div></aside>
 <div class="flex-grow-1 min-w-0"><div class="topbar d-lg-none"><button class="btn btn-light btn-sm" data-bs-toggle="offcanvas" data-bs-target="#side"><i class="bi bi-list"></i> Menu</button><b class="ms-2">Mtalii Bora</b></div>
 <main class="container-xl py-4 px-3 px-lg-4">
 __MB_EOF__
@@ -154,17 +166,22 @@ $u = $_SESSION['user'] ?? null;
 $_SESSION['csrf'] ??= bin2hex(random_bytes(16));
 $all = ['traveler', 'guide', 'driver', 'admin'];
 $need = ['dashboard'=>['traveler'],'pro'=>['guide','driver'],'admin'=>['admin'],'security'=>['admin'],'verification'=>['guide','driver'],'bookings'=>$all,'messages'=>$all,'itinerary'=>$all,'reviews'=>$all,'notifications'=>$all];
+$need += ['services' => $all, 'search' => $all, 'provider' => $all]; // guests are sent to traveler login/sign-up first
+if (!$u && in_array($p, ['services', 'search', 'provider'], true)) {
+  $_SESSION['next'] = $p . (isset($_GET['svc'], $SVC[$_GET['svc']]) ? '&svc=' . $_GET['svc'] : '') . ($p == 'provider' ? '&id=' . (int)($_GET['id'] ?? 1) : '') . (in_array($_GET['type'] ?? '', ['guide', 'driver'], true) ? '&type=' . $_GET['type'] : '');
+}
 if (isset($need[$p]) && (!$u || !in_array($u['role'], $need[$p]))) go('login');
+function after_login($role) { global $landing; $n = $_SESSION['next'] ?? null; unset($_SESSION['next']); go($n ?: $landing[$role]); }
 if ($p === 'home' && $u) go($landing[$u['role']]);
 $err = '';
 if ($p === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
   $em = strtolower(trim($_POST['email'] ?? '')); $acc = $USERS[$em] ?? null;
   if (!hash_equals($_SESSION['csrf'], $_POST['csrf'] ?? '')) $err = 'Session expired. Please try again.';
   elseif (!$acc || !hash_equals($acc[2], $_POST['password'] ?? '')) $err = 'Invalid email or password.';
-  else { session_regenerate_id(true); $_SESSION['user'] = ['name' => $acc[0], 'email' => $em, 'role' => $acc[1]]; go($landing[$acc[1]]); }
+  else { session_regenerate_id(true); $_SESSION['user'] = ['name' => $acc[0], 'email' => $em, 'role' => $acc[1]]; after_login($acc[1]); }
 }
 if ($p === 'google') { // DEMO: real Google OAuth needs a Google Cloud client ID/secret (see README)
-  session_regenerate_id(true); $_SESSION['user'] = ['name' => 'Google Traveler', 'email' => 'demo.google@gmail.com', 'role' => 'traveler']; go('dashboard');
+  session_regenerate_id(true); $_SESSION['user'] = ['name' => 'Google Traveler', 'email' => 'demo.google@gmail.com', 'role' => 'traveler']; after_login('traveler');
 }
 if ($p === 'logout') { $_SESSION = []; session_destroy(); go('login'); }
 require __DIR__ . '/includes/header.php';
@@ -234,18 +251,32 @@ wizard('Tour guide application', [
 __MB_EOF__
 mkdir -p "pages"
 cat > "pages/home.php" <<'__MB_EOF__'
-<section class="hero"><small class="text-uppercase">Explore Kenya</small><h1>Discover Kenya with trusted local experts</h1>
-<p class="lead" style="max-width:520px">Verified guides and safari drivers, one booking, one itinerary — from the Mara to the coast.</p>
-<form action="" method="get" class="search-pill d-flex mt-3"><input type="hidden" name="p" value="search"><input name="q" class="form-control" placeholder="Search by name, county or language"><button class="btn btn-accent">Search</button></form><div class="mt-3 d-flex gap-2 flex-wrap"><a class="btn btn-light rounded-pill" href="?p=signup">Create traveler account</a><a class="btn btn-outline-light rounded-pill" href="?p=join">Become a provider</a><a class="btn btn-outline-light rounded-pill" href="?p=login">Login</a></div></section>
-<div class="row row-cols-2 row-cols-lg-4 g-3 text-center my-4 feat">
-<?php foreach ([['patch-check','Verified providers','Licence checks by admins'],['calendar-check','Quick booking','Request in minutes'],['compass','Local experts','Guides who know every corner'],['list-check','Shared itineraries','Plan day by day together']] as $f): ?>
-<div class="col"><i class="bi bi-<?= $f[0] ?>"></i><div class="fw-semibold"><?= $f[1] ?></div><small class="text-body-secondary"><?= $f[2] ?></small></div><?php endforeach; ?></div>
-<div class="d-flex justify-content-between align-items-baseline mt-4"><h2>Popular destinations</h2><a href="?p=destinations">View all →</a></div>
+<section class="hero"><small class="text-uppercase">Explore Kenya</small><h1>Kenya's marketplace for trusted local travel experts</h1>
+<p class="lead" style="max-width:540px">Book verified tour guides and safari drivers, plan your itinerary together, and travel with confidence — from the Mara to the coast.</p>
+<div class="d-flex gap-2 flex-wrap mt-2"><a class="btn btn-accent btn-lg" href="?p=signup">Create traveler account</a><a class="btn btn-light btn-lg rounded-pill" href="?p=login">Login</a></div></section>
+
+<section class="my-5"><div class="text-center mb-4"><h2>Join Mtalii Bora</h2><p class="text-body-secondary">Choose how you want to use the platform.</p></div>
+<div class="row g-3"><?php foreach ([['person','Traveler','Discover and book verified guides and drivers, chat, and plan your trip.',['Search and compare providers','Book and manage trips','Shared itinerary planner'],'Create account','?p=signup','Already registered? <a href="?p=login">Login</a>'],
+['compass','Tour guide','Share your knowledge of Kenya and reach international visitors.',['Professional profile and reviews','Verified badge','Control your availability'],'Apply as a guide','?p=guide_signup','Takes about 5 minutes'],
+['truck-front','Safari driver','Offer safe, comfortable transport for safaris and transfers.',['Vehicle and licence verification','Booking requests in one place','Set service areas and rates'],'Apply as a driver','?p=driver_signup','Takes about 5 minutes']] as $a): ?>
+<div class="col-md-4"><div class="card aud p-4 h-100"><i class="bi bi-<?= $a[0] ?>"></i><h4 class="mt-2"><?= $a[1] ?></h4><p class="text-body-secondary"><?= $a[2] ?></p><ul class="small"><?php foreach ($a[3] as $b) echo "<li>$b</li>"; ?></ul>
+<a class="btn btn-accent mt-auto align-self-start" href="<?= $a[5] ?>"><?= $a[4] ?></a><small class="text-body-secondary mt-2"><?= $a[6] ?></small></div></div><?php endforeach; ?></div></section>
+
+<section class="my-5" id="services"><div class="d-flex justify-content-between align-items-end flex-wrap gap-2"><div><h2 class="mb-0">Our services</h2><p class="text-body-secondary mb-0">Pick a category — we'll ask you to log in or sign up first.</p></div></div>
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3 mt-1"><?php foreach ($SVC as $k => $v): ?><div class="col"><a class="card p-4 h-100 svc" href="?p=search&svc=<?= $k ?>"><i class="bi bi-<?= $v[1] ?>"></i><h5 class="mt-2"><?= e($v[0]) ?></h5><p class="small text-body-secondary mb-2"><?= e($v[2]) ?></p><span class="small text-decoration-underline align-self-start">Explore →</span></a></div><?php endforeach; ?></div>
+<h5 class="mt-4">Coming soon</h5><div class="row row-cols-2 row-cols-lg-4 g-3"><?php foreach ([['building','Accommodation'],['ticket-perforated','Park & event tickets'],['car-front','Car hire'],['shield-check','Travel insurance']] as $c): ?>
+<div class="col"><div class="card soon p-3 text-center"><i class="bi bi-<?= $c[0] ?> fs-3"></i><b><?= $c[1] ?></b><span class="badge text-bg-secondary mx-auto mt-1">Coming soon</span></div></div><?php endforeach; ?></div></section>
+
+<section class="my-5 text-center"><h2>How it works</h2><div class="row row-cols-2 row-cols-lg-4 g-3 mt-1">
+<?php foreach ([['Create an account','Sign up free as a traveler.'],['Find a verified expert','Filter by service, county, language and availability.'],['Book and chat','Send a request and agree the details.'],['Plan your trip','Build a day-by-day itinerary together.']] as $i => $s): ?>
+<div class="col"><div class="step-n"><?= $i + 1 ?></div><b><?= $s[0] ?></b><br><small class="text-body-secondary"><?= $s[1] ?></small></div><?php endforeach; ?></div></section>
+
+<div class="d-flex justify-content-between align-items-baseline"><h2>Popular destinations</h2><a href="?p=destinations">View all →</a></div>
 <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-4 g-3"><?php foreach (array_slice($D, 0, 4) as $d) echo dcard($d); ?></div>
 <div class="row row-cols-2 row-cols-md-4 g-3 text-center my-4">
 <?php foreach ([[count($D),'Destinations'],[count(array_unique(array_column($D, 1))),'Counties'],[count($P),'Providers'],[count(array_filter($P, fn($x) => $x[6])),'Verified']] as $s): ?>
 <div class="col"><div class="card stat p-3"><b><?= $s[0] ?></b><?= $s[1] ?></div></div><?php endforeach; ?></div>
-<div class="cta"><h2>Your next Kenyan adventure starts here</h2><p>Browse verified guides and drivers, agree an itinerary, and travel with confidence.</p><a class="btn btn-accent" href="?p=search&type=guide">Meet our guides</a></div>
+<div class="cta"><h2>Your next Kenyan adventure starts here</h2><p>Create a free account in minutes.</p><a class="btn btn-accent" href="?p=signup">Get started</a></div>
 __MB_EOF__
 mkdir -p "pages"
 cat > "pages/itinerary.php" <<'__MB_EOF__'
@@ -265,7 +296,7 @@ cat > "pages/join.php" <<'__MB_EOF__'
 __MB_EOF__
 mkdir -p "pages"
 cat > "pages/login.php" <<'__MB_EOF__'
-<div class="row justify-content-center"><div class="col-md-7 col-lg-5"><div class="card p-4"><h3>Welcome back</h3><p class="text-body-secondary small">Log in to explore Kenya with verified local experts.</p>
+<div class="row justify-content-center"><div class="col-md-7 col-lg-5"><div class="card p-4"><h3>Welcome back</h3><?php if (!empty($_SESSION['next'])): ?><div class="alert alert-info py-2 small">Please log in — or <a href="?p=signup">create a free traveler account</a> — to continue.</div><?php endif; ?><p class="text-body-secondary small">Log in to explore Kenya with verified local experts.</p>
 <?php if ($err) echo '<div class="alert alert-danger py-2">' . e($err) . '</div>'; ?>
 <?= google_btn() ?><div class="text-center text-body-secondary small my-3">or log in with email</div>
 <form method="post" action="?p=login"><input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>"><label class="form-label">Email</label><input type="email" name="email" class="form-control mb-3" required>

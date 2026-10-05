@@ -22,3 +22,13 @@ h1,h2,h3,h4,.brand{font-family:'Playfair Display',Georgia,serif}
 .timeline{border-left:3px solid var(--a);padding-left:18px}.timeline .item{position:relative;margin-bottom:14px}.timeline .item:before{content:'';position:absolute;left:-26px;top:6px;width:12px;height:12px;border-radius:50%;background:var(--a)}
 .wiz .pill{background:var(--bs-secondary-bg);color:var(--bs-body-color);padding:.5rem 1rem;font-weight:500}.wiz .pill.active{background:var(--a);color:#fff}
 .svc{text-decoration:none;color:inherit;display:block}.svc i{font-size:1.8rem;color:var(--a)}.svc:hover{transform:translateY(-3px)}.svc{transition:.15s}
+.sidebar{transition:width .2s}
+@media(min-width:992px){
+ [data-side=collapsed] .sidebar{width:76px}
+ [data-side=collapsed] .lbl,[data-side=collapsed] .userchip{display:none}
+ [data-side=collapsed] .nav-h{font-size:0;height:1px;background:#ffffff26;margin:10px 14px;overflow:hidden}
+ [data-side=collapsed] .nav-i{text-align:center;padding:10px 0}[data-side=collapsed] .nav-i i{margin:0;font-size:1.2rem}
+ [data-side=collapsed] .sb-head{flex-direction:column;padding:0!important}[data-side=collapsed] .brand{padding:18px 0 4px}
+}
+#collapseBtn i{transition:transform .2s}[data-side=collapsed] #collapseBtn i{transform:rotate(180deg)}
+.aud i{font-size:2.2rem;color:var(--a)}.soon{opacity:.75;border-style:dashed}.step-n{width:38px;height:38px;border-radius:50%;background:var(--a);color:#fff;display:grid;place-items:center;font-weight:700;margin:0 auto 8px}

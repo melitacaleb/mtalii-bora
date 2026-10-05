@@ -1,4 +1,4 @@
-<div class="row justify-content-center"><div class="col-md-7 col-lg-5"><div class="card p-4"><h3>Welcome back</h3><p class="text-body-secondary small">Log in to explore Kenya with verified local experts.</p>
+<div class="row justify-content-center"><div class="col-md-7 col-lg-5"><div class="card p-4"><h3>Welcome back</h3><?php if (!empty($_SESSION['next'])): ?><div class="alert alert-info py-2 small">Please log in — or <a href="?p=signup">create a free traveler account</a> — to continue.</div><?php endif; ?><p class="text-body-secondary small">Log in to explore Kenya with verified local experts.</p>
 <?php if ($err) echo '<div class="alert alert-danger py-2">' . e($err) . '</div>'; ?>
 <?= google_btn() ?><div class="text-center text-body-secondary small my-3">or log in with email</div>
 <form method="post" action="?p=login"><input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>"><label class="form-label">Email</label><input type="email" name="email" class="form-control mb-3" required>

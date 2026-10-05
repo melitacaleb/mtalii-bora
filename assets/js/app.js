@@ -1,7 +1,8 @@
 const root = document.documentElement, btn = document.getElementById('themeBtn');
-const paint = () => btn.innerHTML = root.dataset.bsTheme === 'dark' ? '<i class="bi bi-sun"></i> Light mode' : '<i class="bi bi-moon-stars"></i> Dark mode';
+const paint = () => btn.innerHTML = root.dataset.bsTheme === 'dark' ? '<i class="bi bi-sun"></i><span class="lbl"> Light mode</span>' : '<i class="bi bi-moon-stars"></i><span class="lbl"> Dark mode</span>';
 btn.onclick = () => { root.dataset.bsTheme = root.dataset.bsTheme === 'dark' ? 'light' : 'dark'; localStorage.setItem('theme', root.dataset.bsTheme); paint(); };
 paint();
+document.getElementById('collapseBtn').onclick = () => { root.dataset.side = root.dataset.side === 'collapsed' ? 'open' : 'collapsed'; localStorage.setItem('side', root.dataset.side); };
 document.querySelectorAll('form[data-demo]').forEach(f => f.addEventListener('submit', e => { e.preventDefault(); bootstrap.Toast.getOrCreateInstance(document.getElementById('demoToast')).show(); }));
 document.querySelectorAll('.wiz').forEach(w => {
   const s = [...w.querySelectorAll('.step')], p = [...w.querySelectorAll('.pill')], q = c => w.querySelector(c); let i = 0;
