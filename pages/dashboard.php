@@ -1,0 +1,9 @@
+<div class="d-flex justify-content-between flex-wrap gap-2 align-items-end mb-3"><div><small class="text-body-secondary">Karibu,</small><h2 class="mb-0"><?= e(explode(' ', $u['name'])[0]) ?> 👋</h2></div>
+<div class="card p-3"><small class="text-body-secondary">Next trip</small><b>Maasai Mara · 21–25 Oct</b><small><?= status_badge('Pending') ?> with Wanjiru Kamau</small></div></div>
+<section class="mb-4"><div class="d-flex justify-content-between align-items-baseline"><h3>Explore by service</h3><a href="?p=services">All categories →</a></div>
+<div class="row row-cols-2 row-cols-lg-3 g-3"><?php foreach ($SVC as $k => $v): ?><div class="col"><a class="card p-3 h-100 svc" href="?p=search&svc=<?= $k ?>"><i class="bi bi-<?= $v[1] ?>"></i><b><?= e($v[0]) ?></b><small class="text-body-secondary"><?= e($v[2]) ?></small></a></div><?php endforeach; ?></div></section>
+<section class="mb-4"><div class="d-flex justify-content-between align-items-baseline"><h3>Explore destinations</h3><a href="?p=destinations">View all →</a></div>
+<div class="row row-cols-1 row-cols-sm-2 row-cols-xl-3 g-3"><?php foreach ([0, 17, 19, 11, 7, 16] as $i) echo dcard($D[$i]); ?></div></section>
+<section class="mb-4"><div class="d-flex justify-content-between align-items-baseline"><h3>Top-rated guides &amp; drivers</h3><a href="?p=search">Browse all →</a></div>
+<div class="row row-cols-1 row-cols-md-3 g-3"><?php foreach (array_slice($P, 0, 3) as $x): ?><div class="col"><a class="card p-3 h-100 text-decoration-none" href="?p=provider&id=<?= $x[0] ?>"><div class="d-flex gap-3 align-items-center"><div class="avatar"><?= e($x[1][0]) ?></div><div><b><?= e($x[1]) ?></b><br><?= vbadge($x[6]) ?></div></div>
+<small class="text-body-secondary mt-2"><?= ucfirst($x[2]) ?> · <?= e($x[3]) ?> · $<?= $x[5] ?>/day · <?= stars($x[7]) ?></small></a></div><?php endforeach; ?></div></section>

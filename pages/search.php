@@ -1,0 +1,15 @@
+<?php $q = trim($_GET['q'] ?? ''); $type = $_GET['type'] ?? ''; $ver = !empty($_GET['ver']); $date = $_GET['date'] ?? ''; $max = (int)($_GET['max'] ?? 0); $svc = $_GET['svc'] ?? '';
+$free = function ($b) use ($date) { if (!$date) return true; foreach ($b as $r) if ($date >= date('Y-m-d', strtotime("+$r[0] days")) && $date <= date('Y-m-d', strtotime("+$r[1] days"))) return false; return true; };
+$res = array_filter($P, fn($x) => (!$type || $x[2] == $type) && (!$ver || $x[6]) && (!$max || $x[5] <= $max) && (!$svc || in_array($svc, $SVCMAP[$x[0]] ?? [])) && $free($x[11]) && (!$q || stripos("$x[1] $x[3] $x[4]", $q) !== false)); ?>
+<h2><?= $type == 'driver' ? 'Safari drivers' : ($type == 'guide' ? 'Tour guides' : 'Search guides & drivers') ?></h2>
+<form class="card p-3 mb-3 row g-2 align-items-end"><input type="hidden" name="p" value="search">
+<div class="col-md-2"><label class="form-label small">Name, county, language</label><input name="q" value="<?= e($q) ?>" class="form-control"></div>
+<div class="col-md-1"><label class="form-label small">Type</label><select name="type" class="form-select"><option value="">All</option><option value="guide" <?= $type == 'guide' ? 'selected' : '' ?>>Guides</option><option value="driver" <?= $type == 'driver' ? 'selected' : '' ?>>Drivers</option></select></div>
+<div class="col-md-2"><label class="form-label small">Service</label><select name="svc" class="form-select"><option value="">Any</option><?php foreach ($SVC as $k => $v) echo "<option value=\"$k\"" . ($svc == $k ? " selected" : "") . ">" . e($v[0]) . "</option>"; ?></select></div>
+<div class="col-md-2"><label class="form-label small">Available on</label><input type="date" name="date" value="<?= e($date) ?>" class="form-control"></div>
+<div class="col-md-1"><label class="form-label small">Max $</label><input type="number" name="max" value="<?= $max ?: '' ?>" class="form-control"></div>
+<div class="col-md-2"><label class="form-check"><input type="checkbox" name="ver" value="1" class="form-check-input" <?= $ver ? 'checked' : '' ?>> Verified only</label></div><div class="col-md-1"><button class="btn btn-accent w-100">Go</button></div></form>
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3"><?php foreach ($res as $x): ?><div class="col"><div class="card h-100 p-3"><div class="d-flex gap-3 align-items-center"><div class="avatar"><?= e($x[1][0]) ?></div>
+<div><b><?= e($x[1]) ?></b><br><?= vbadge($x[6]) ?></div></div><div class="small text-body-secondary mt-2"><?= ucfirst($x[2]) ?> · <i class="bi bi-geo-alt"></i> <?= e($x[3]) ?> · $<?= $x[5] ?>/day</div>
+<div class="small"><?= e($x[4]) ?></div><div class="my-1"><?php foreach ($SVCMAP[$x[0]] ?? [] as $k) echo "<span class=\"badge text-bg-light border me-1\">" . e($SVC[$k][0]) . "</span>"; ?></div><div class="my-1"><?= stars($x[7]) ?> <small>(<?= $x[8] ?>)</small></div><p class="small"><?= e($x[9]) ?></p><a href="?p=provider&id=<?= $x[0] ?>" class="mt-auto">View profile & book →</a></div></div><?php endforeach; ?></div>
+<?php if (!$res) echo '<p class="text-body-secondary mt-3">No providers match those filters.</p>'; ?>

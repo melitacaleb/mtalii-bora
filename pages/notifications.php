@@ -1,0 +1,3 @@
+<h2>Notifications</h2><div class="list-group">
+<?php foreach ([['calendar-check','success','Booking #102 was accepted by Otieno Odhiambo','2 hours ago'],['chat-dots','primary','New message from Wanjiru Kamau','Yesterday'],['patch-check','success','Your guide licence was verified','2 days ago'],['star','warning','Please review your trip with Amina Hassan','3 days ago'],['shield-exclamation','danger','New login from a new device','5 days ago']] as $n): ?>
+<div class="list-group-item d-flex gap-3 align-items-center"><i class="bi bi-<?= $n[0] ?> text-<?= $n[1] ?> fs-4"></i><div class="flex-grow-1"><?= $n[2] ?><br><small class="text-body-secondary"><?= $n[3] ?></small></div><button class="btn btn-sm btn-outline-secondary">Mark read</button></div><?php endforeach; ?></div>

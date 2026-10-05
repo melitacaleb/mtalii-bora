@@ -1,0 +1,7 @@
+<h2>Provider verification</h2><p class="text-body-secondary">How Mtalii Bora earns traveler trust: every guide and driver is reviewed by an administrator before the Verified badge appears.</p>
+<div class="row g-3 mb-3"><?php foreach ([['1','Submit documents','National ID, guide or PSV licence, certificates.'],['2','Admin review','An administrator checks documents and licence numbers.'],['3','Verified badge','Badge shown on your profile and in search results.']] as $s): ?>
+<div class="col-md-4"><div class="card p-3 h-100"><div class="avatar mb-2"><?= $s[0] ?></div><b><?= $s[1] ?></b><small class="text-body-secondary"><?= $s[2] ?></small></div></div><?php endforeach; ?></div>
+<div class="card p-3"><h5>My documents</h5><table class="table align-middle mb-0"><thead><tr><th>Document</th><th>Status</th><th></th></tr></thead><tbody>
+<?php foreach ([['National ID','Verified','success'],['Tourism guide licence (KTB)','Verified','success'],['Certificate of good conduct','Under review','warning'],['First-aid certificate','Not uploaded','secondary']] as $r): ?>
+<tr><td><?= $r[0] ?></td><td><span class="badge text-bg-<?= $r[2] ?>"><?= $r[1] ?></span></td><td class="text-end"><button class="btn btn-sm btn-outline-secondary">Upload</button></td></tr><?php endforeach; ?></tbody></table></div>
+<p class="small text-body-secondary mt-3">Prototype note: verification status shown here is sample data and does not represent official certification.</p>

@@ -1,0 +1,6 @@
+<h2>Administration</h2><div class="row row-cols-2 row-cols-lg-4 g-3 text-center mb-3 stat">
+<?php foreach ([['128','Users'],['24','Providers'],['3','Awaiting verification'],['57','Bookings this month']] as $s): ?><div class="col"><div class="card p-3"><b><?= $s[0] ?></b><?= $s[1] ?></div></div><?php endforeach; ?></div>
+<div class="card p-3 mb-3"><h5>Verification queue</h5><table class="table align-middle mb-0"><tbody>
+<?php foreach ($P as $x) if (!$x[6]): ?><tr><td><b><?= e($x[1]) ?></b><br><small class="text-body-secondary"><?= ucfirst($x[2]) ?> · <?= e($x[3]) ?></small></td><td>Licence no. LIC-<?= 1000 + $x[0] ?></td><td class="text-end"><form data-demo><button class="btn btn-sm btn-success">Verify</button> <button class="btn btn-sm btn-outline-danger">Reject</button></form></td></tr><?php endif; ?></tbody></table></div>
+<div class="card p-3"><h5>Users & providers</h5><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Name</th><th>Role</th><th>County</th><th>Status</th></tr></thead><tbody>
+<?php foreach ($P as $x): ?><tr><td><?= e($x[1]) ?></td><td><?= ucfirst($x[2]) ?></td><td><?= e($x[3]) ?></td><td><?= vbadge($x[6]) ?></td></tr><?php endforeach; ?></tbody></table></div></div>

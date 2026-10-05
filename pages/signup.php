@@ -1,0 +1,4 @@
+<div class="row justify-content-center"><div class="col-lg-8"><div class="card p-4"><h3>Create a traveler account</h3><?= google_btn('Sign up with Google') ?><div class="text-center text-body-secondary small my-3">or sign up with email</div>
+<form data-demo class="row g-3"><?= field('Full name', 'name', 'text', 'required') . field('Email', 'email', 'email', 'required') . field('Password (8+ characters)', 'password', 'password', 'minlength=8 required') . field('Country', 'country') ?>
+<div class="col-12"><label class="form-label">Interests</label><div><?php foreach ($SVC as $v): ?><label class="me-3"><input type="checkbox" class="form-check-input"> <?= e($v[0]) ?></label><?php endforeach; ?></div></div>
+<div class="col-12"><button class="btn btn-accent">Create account</button> <span class="small ms-2">Already registered? <a href="?p=login">Login</a></span></div></form></div></div></div>

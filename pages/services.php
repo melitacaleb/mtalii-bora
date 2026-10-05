@@ -1,0 +1,3 @@
+<h2>Service categories</h2><p class="text-body-secondary">Choose the kind of experience you want, then pick a verified guide or driver offering it.</p>
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3"><?php foreach ($SVC as $k => $v): $n = count(array_filter($SVCMAP, fn($m) => in_array($k, $m))); ?>
+<div class="col"><a class="card p-4 h-100 svc" href="?p=search&svc=<?= $k ?>"><i class="bi bi-<?= $v[1] ?>"></i><h5 class="mt-2"><?= e($v[0]) ?></h5><p class="small text-body-secondary mb-2"><?= e($v[2]) ?></p><span class="badge text-bg-light border align-self-start"><?= $n ?> provider<?= $n == 1 ? '' : 's' ?></span></a></div><?php endforeach; ?></div>
