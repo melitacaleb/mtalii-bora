@@ -11,10 +11,10 @@ export default function ProviderWizard({ role }: { role: 'guide' | 'driver' }) {
   const valid = () => { const box = form.current!.querySelectorAll('[data-step="' + step + '"] input, [data-step="' + step + '"] textarea'); for (const el of Array.from(box) as HTMLInputElement[]) if (!el.checkValidity()) { el.reportValidity(); return false; } return true; };
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (!valid()) return; setBusy(true); setErr(''); const f = new FormData(form.current!);
-    const { data, error } = await createClient().auth.signUp({ email: String(f.get('email')).trim(), password: String(f.get('password')), options: { emailRedirectTo: `${location.origin}/auth/callback?next=/bookings`, data: {
+    const { data, error } = await createClient().auth.signUp({ email: String(f.get('email')).trim(), password: String(f.get('password')), options: { emailRedirectTo: `${location.origin}/auth/callback?next=/provider`, data: {
       role, full_name: f.get('name'), county: f.get('county'), languages: f.get('languages'), rate: f.get('rate'), license_no: f.get('license_no'), vehicle: f.get('vehicle') ?? '', bio: f.get('bio') ?? '', services: f.getAll('services').join(',') } } });
     setBusy(false); if (error) return setErr(error.message);
-    if (data.session) { router.replace('/bookings'); router.refresh(); } else setDone(true);
+    if (data.session) { router.replace('/provider'); router.refresh(); } else setDone(true);
   }
   if (done) return <p role="status" className="panel p-5">Application received. Confirm your email using the link we sent, then log in. An administrator will review your licence number before the Verified badge appears.</p>;
   return (<form ref={form} onSubmit={submit} className="panel space-y-4 p-6">

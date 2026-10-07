@@ -18,7 +18,7 @@ export default async function Bookings({ searchParams: sp }: { searchParams: { t
       <div className="min-w-0 flex-1"><b>{provider ? b.traveler?.full_name : b.provider?.profiles?.full_name}</b><span className="ml-2 text-sm text-muted">{provider ? `${b.travelers} traveler${b.travelers > 1 ? 's' : ''}` : b.provider?.type}</span>
         <p className="text-sm">{b.start_date} to {b.end_date}</p>{b.note && <p className="text-sm text-muted">{b.note}</p>}</div>
       <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${TONE[b.status]}`}>{b.status}</span>
-      <div className="flex gap-2">{provider && b.status === 'pending' && <>{act(b.id, 'accepted', 'Accept', true)}{act(b.id, 'rejected', 'Decline')}</>}{provider && b.status === 'accepted' && act(b.id, 'completed', 'Mark completed', true)}
+      <div className="flex gap-2"><Link href={`/bookings/${b.id}`} className="btn btn-line !py-1.5">Open</Link>{provider && b.status === 'pending' && <>{act(b.id, 'accepted', 'Accept', true)}{act(b.id, 'rejected', 'Decline')}</>}{provider && b.status === 'accepted' && act(b.id, 'completed', 'Mark completed', true)}
         {!provider && ['pending', 'accepted'].includes(b.status) && act(b.id, 'cancelled', 'Cancel')}</div></li>))}
       {!rows.length && <li className="p-6 text-muted">{history ? 'No past bookings yet.' : 'Nothing active right now.'}</li>}</ul></div>);
 }

@@ -2,8 +2,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { CalendarCheck, ChevronsLeft, Compass, Map, Search } from 'lucide-react';
-const ICONS: Record<string, any> = { Compass, Map, Search, CalendarCheck };
+import { Bell, CalendarCheck, ChevronsLeft, Compass, LayoutDashboard, Map, Search, ShieldCheck } from 'lucide-react';
+const ICONS: Record<string, any> = { Compass, Map, Search, CalendarCheck, Bell, LayoutDashboard, ShieldCheck };
 export default function Sidebar({ items }: { items: { href: string; label: string; icon: string }[] }) {
   const path = usePathname(); const [open, setOpen] = useState(true);
   useEffect(() => setOpen(localStorage.getItem('side') !== 'collapsed'), []);

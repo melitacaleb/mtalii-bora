@@ -8,9 +8,12 @@ export default async function Shell({ children }: { children: React.ReactNode })
     <p className="mt-2">Copy <code>.env.local.example</code> to <code>.env.local</code>, paste your project URL and anon key from Supabase (Project Settings, API), then restart <code>npm run dev</code>.</p></div></main>);
   const { user, profile } = await getSession();
   const role = profile?.role;
+  const bell = { href: '/notifications', label: 'Notifications', icon: 'Bell' };
   const items = role === 'traveler'
-    ? [{ href: '/dashboard', label: 'Explore home', icon: 'Compass' }, { href: '/destinations', label: 'Destinations', icon: 'Map' }, { href: '/providers', label: 'Guides and drivers', icon: 'Search' }, { href: '/bookings', label: 'My bookings', icon: 'CalendarCheck' }]
-    : [{ href: '/bookings', label: 'Booking requests', icon: 'CalendarCheck' }, { href: '/destinations', label: 'Destinations', icon: 'Map' }];
+    ? [{ href: '/dashboard', label: 'Explore home', icon: 'Compass' }, { href: '/destinations', label: 'Destinations', icon: 'Map' }, { href: '/providers', label: 'Guides and drivers', icon: 'Search' }, { href: '/bookings', label: 'My bookings', icon: 'CalendarCheck' }, bell]
+    : role === 'admin'
+      ? [{ href: '/admin', label: 'Administration', icon: 'ShieldCheck' }, { href: '/providers', label: 'Guides and drivers', icon: 'Search' }, { href: '/destinations', label: 'Destinations', icon: 'Map' }]
+      : [{ href: '/provider', label: 'Dashboard', icon: 'LayoutDashboard' }, { href: '/bookings', label: 'Booking requests', icon: 'CalendarCheck' }, bell];
   return (
     <div className="flex min-h-screen">
       {user && <Sidebar items={items} />}

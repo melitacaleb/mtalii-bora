@@ -33,7 +33,7 @@ Verified tour guides and safari drivers in Kenya: search, availability, booking 
 
 ## 1. Supabase (one time)
 1. Create a project at supabase.com.
-2. SQL Editor: paste and run `supabase/schema.sql` (tables, security rules, Kenya destinations).
+2. SQL Editor: run `supabase/schema.sql` (tables, security rules, Kenya destinations), then run `supabase/002_modules.sql` (unavailable dates, message notifications).
 3. Authentication > URL Configuration: Site URL `http://localhost:3000`, add redirect URL `http://localhost:3000/auth/callback`.
 4. For quick local testing, Authentication > Providers > Email: turn off "Confirm email" (otherwise users must click the email link).
 5. Google sign-in: Authentication > Providers > Google. Create an OAuth client in Google Cloud (Web application) with redirect URI `https://YOUR-REF.supabase.co/auth/v1/callback`, then paste the client ID and secret into Supabase.
@@ -49,6 +49,44 @@ Register an account, then in the SQL Editor:
 `update profiles set role = 'admin' where id = (select id from auth.users where email = 'YOUR_EMAIL');`
 
 Do not commit `.env.local`. Never put the Supabase service_role key in this app.
+__MB_EOF__
+mkdir -p "app/admin"
+cat > "app/admin/actions.ts" <<'__MB_EOF__'
+'use server';
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+export async function setVerified(fd: FormData) {
+  const { error } = await createClient().rpc('set_verified', { pid: String(fd.get('id')), v: fd.get('v') === '1' });
+  revalidatePath('/admin'); redirect(error ? `/admin?error=${encodeURIComponent(error.message)}` : '/admin');
+}
+__MB_EOF__
+mkdir -p "app/admin"
+cat > "app/admin/page.tsx" <<'__MB_EOF__'
+import { redirect } from 'next/navigation';
+import { BadgeCheck } from 'lucide-react';
+import { getSession } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/server';
+import { landing } from '@/lib/services';
+import { setVerified } from './actions';
+export default async function Admin({ searchParams }: { searchParams: { error?: string } }) {
+  const { user, profile } = await getSession(); if (!user) redirect('/login?next=/admin'); if (profile?.role !== 'admin') redirect(landing(profile?.role));
+  const s = createClient(); const count = async (t: string) => (await s.from(t).select('*', { count: 'exact', head: true })).count ?? 0;
+  const [users, bookings, { data: provs }, { data: audit }] = await Promise.all([count('profiles'), count('bookings'), s.from('provider_profiles').select('id,type,county,license_no,verified,profiles(full_name)').order('verified').order('county'),
+    s.from('audit_log').select('*').order('created_at', { ascending: false }).limit(40)]);
+  const ids = Array.from(new Set((audit ?? []).map((a: any) => a.user_id).filter(Boolean))); const { data: who } = ids.length ? await s.from('profiles').select('id,full_name').in('id', ids) : { data: [] as any[] };
+  const name = (id: string) => (who ?? []).find((w: any) => w.id === id)?.full_name ?? 'System'; const waiting = (provs ?? []).filter((p: any) => !p.verified).length;
+  return (<div className="space-y-6"><h1 className="text-3xl">Administration</h1>
+    {searchParams.error && <p role="alert" className="rounded-lg border border-[#b3261e] bg-[#b3261e]/10 px-3 py-2 text-sm">{searchParams.error}</p>}
+    <div className="grid gap-4 sm:grid-cols-4">{[['Users', users], ['Providers', provs?.length ?? 0], ['Awaiting verification', waiting], ['Bookings', bookings]].map(([l, v]) => <div key={String(l)} className="panel p-4"><span className="text-sm text-muted">{l}</span><span className="block font-display text-3xl">{v}</span></div>)}</div>
+    <section className="panel overflow-x-auto p-5"><h2 className="text-xl">Provider verification</h2><table className="mt-3 w-full text-left text-sm"><thead><tr className="border-b border-line"><th className="py-2">Provider</th><th>Type</th><th>County</th><th>Licence number</th><th>Status</th><th /></tr></thead>
+      <tbody>{(provs ?? []).map((p: any) => (<tr key={p.id} className="border-b border-line last:border-0"><td className="py-2 font-medium">{p.profiles?.full_name}</td><td className="capitalize">{p.type}</td><td>{p.county}</td><td>{p.license_no || <span className="text-muted">not entered</span>}</td>
+        <td>{p.verified ? <span className="inline-flex items-center gap-1 text-forest"><BadgeCheck size={15} />Verified</span> : 'Pending'}</td>
+        <td className="text-right"><form action={setVerified}><input type="hidden" name="id" value={p.id} /><input type="hidden" name="v" value={p.verified ? '0' : '1'} /><button className={`btn ${p.verified ? 'btn-line' : 'btn-clay'} !py-1`}>{p.verified ? 'Revoke' : 'Verify'}</button></form></td></tr>))}
+        {!provs?.length && <tr><td colSpan={6} className="py-4 text-muted">No providers registered yet.</td></tr>}</tbody></table></section>
+    <section className="panel overflow-x-auto p-5"><h2 className="text-xl">Security and audit log</h2><table className="mt-3 w-full text-left text-sm"><thead><tr className="border-b border-line"><th className="py-2">Time</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead>
+      <tbody>{(audit ?? []).map((a: any) => <tr key={a.id} className="border-b border-line last:border-0"><td className="whitespace-nowrap py-1.5">{new Date(a.created_at).toLocaleString('en-KE', { dateStyle: 'short', timeStyle: 'short' })}</td><td>{name(a.user_id)}</td><td>{a.action}</td><td className="text-muted">{a.detail}</td></tr>)}</tbody></table></section></div>);
+}
 __MB_EOF__
 mkdir -p "app/auth/callback"
 cat > "app/auth/callback/route.ts" <<'__MB_EOF__'
@@ -66,6 +104,78 @@ cat > "app/auth/signout/route.ts" <<'__MB_EOF__'
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 export async function POST(req: NextRequest) { await createClient().auth.signOut(); return NextResponse.redirect(new URL('/', req.url), { status: 303 }); }
+__MB_EOF__
+mkdir -p "app/bookings/[id]"
+cat > "app/bookings/[id]/actions.ts" <<'__MB_EOF__'
+'use server';
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+const back = (id: string, err?: string) => redirect(`/bookings/${id}${err ? `?error=${encodeURIComponent(err)}` : ''}`);
+async function ctx() { const s = createClient(); const { data: { user } } = await s.auth.getUser(); if (!user) redirect('/login'); return { s, user }; }
+export async function sendMessage(fd: FormData) {
+  const id = String(fd.get('booking_id')); const body = String(fd.get('body') ?? '').trim().slice(0, 1000); if (!body) back(id);
+  const { s, user } = await ctx(); const { error } = await s.from('messages').insert({ booking_id: Number(id), sender_id: user.id, body }); if (error) back(id, error.message);
+  revalidatePath(`/bookings/${id}`); back(id);
+}
+export async function addItem(fd: FormData) {
+  const id = String(fd.get('booking_id')); const title = String(fd.get('title') ?? '').trim().slice(0, 120); if (!title) back(id, 'Give the activity a title.');
+  const { s } = await ctx(); const dest = Number(fd.get('destination_id')) || null; const time = String(fd.get('time') ?? '');
+  const { error } = await s.from('itinerary_items').insert({ booking_id: Number(id), day: Math.max(1, Number(fd.get('day')) || 1), start_time: time || null, title, destination_id: dest, notes: String(fd.get('notes') ?? '').slice(0, 300) });
+  if (error) back(id, error.message); revalidatePath(`/bookings/${id}`); back(id);
+}
+export async function deleteItem(fd: FormData) {
+  const id = String(fd.get('booking_id')); const { s } = await ctx(); await s.from('itinerary_items').delete().eq('id', Number(fd.get('id'))); revalidatePath(`/bookings/${id}`); back(id);
+}
+export async function submitReview(fd: FormData) {
+  const id = String(fd.get('booking_id')); const rating = Number(fd.get('rating')); if (!(rating >= 1 && rating <= 5)) back(id, 'Choose a rating from 1 to 5.');
+  const { s } = await ctx(); const { error } = await s.from('reviews').insert({ booking_id: Number(id), provider_id: String(fd.get('provider_id')), rating, comment: String(fd.get('comment') ?? '').slice(0, 600) });
+  if (error) back(id, error.message.includes('duplicate') ? 'You already reviewed this booking.' : error.message); revalidatePath(`/bookings/${id}`); back(id);
+}
+__MB_EOF__
+mkdir -p "app/bookings/[id]"
+cat > "app/bookings/[id]/page.tsx" <<'__MB_EOF__'
+import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
+import { Star } from 'lucide-react';
+import { getSession } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/server';
+import AutoRefresh from '@/components/AutoRefresh';
+import { setStatus } from '../actions';
+import { addItem, deleteItem, sendMessage, submitReview } from './actions';
+export default async function Booking({ params, searchParams }: { params: { id: string }; searchParams: { error?: string } }) {
+  const { user } = await getSession(); if (!user) redirect(`/login?next=/bookings/${params.id}`);
+  const supabase = createClient(); const id = Number(params.id); if (!id) notFound();
+  const { data: b } = await supabase.from('bookings').select('*, provider:provider_profiles(type, profiles(full_name)), traveler:profiles!traveler_id(full_name)').eq('id', id).maybeSingle(); if (!b) notFound();
+  const [{ data: msgs }, { data: items }, { data: review }, { data: dests }] = await Promise.all([
+    supabase.from('messages').select('*').eq('booking_id', id).order('created_at'), supabase.from('itinerary_items').select('*, destination:destinations(name)').eq('booking_id', id).order('day').order('start_time'),
+    supabase.from('reviews').select('rating,comment').eq('booking_id', id).maybeSingle(), supabase.from('destinations').select('id,name').order('name')]);
+  const isProvider = user.id === b.provider_id; const other = isProvider ? b.traveler?.full_name : b.provider?.profiles?.full_name; const open = ['pending', 'accepted', 'completed'].includes(b.status);
+  const byDay: Record<number, any[]> = {}; (items ?? []).forEach((i: any) => (byDay[i.day] ??= []).push(i));
+  const btn = (status: string, label: string, clay = false) => <form action={setStatus} key={status}><input type="hidden" name="id" value={b.id} /><button name="status" value={status} className={`btn ${clay ? 'btn-clay' : 'btn-line'}`}>{label}</button></form>;
+  return (<div className="space-y-5"><AutoRefresh seconds={10} /><Link href="/bookings" className="text-sm font-semibold text-clay underline">Back to bookings</Link>
+    <header className="panel flex flex-wrap items-center gap-4 p-5"><div className="flex-1"><h1 className="text-2xl">Trip with {other}</h1><p className="text-muted">{b.start_date} to {b.end_date}, {b.travelers} traveler{b.travelers > 1 ? 's' : ''}. Status: <b className="capitalize">{b.status}</b></p>{b.note && <p className="mt-1 text-sm">{b.note}</p>}</div>
+      <div className="flex gap-2">{isProvider && b.status === 'pending' && <>{btn('accepted', 'Accept', true)}{btn('rejected', 'Decline')}</>}{isProvider && b.status === 'accepted' && btn('completed', 'Mark completed', true)}{!isProvider && ['pending', 'accepted'].includes(b.status) && btn('cancelled', 'Cancel booking')}</div></header>
+    {searchParams.error && <p role="alert" className="rounded-lg border border-[#b3261e] bg-[#b3261e]/10 px-3 py-2 text-sm">{searchParams.error}</p>}
+    <div className="grid gap-5 lg:grid-cols-2">
+      <section className="panel p-5"><h2 className="text-xl">Itinerary</h2>
+        {Object.keys(byDay).length ? Object.entries(byDay).map(([day, list]) => (<div key={day} className="mt-4"><h3 className="text-base font-semibold">Day {day}</h3><ul className="mt-1 divide-y divide-line">{list.map((i) => (<li key={i.id} className="flex items-start gap-3 py-2"><span className="w-12 shrink-0 text-sm text-muted">{i.start_time?.slice(0, 5)}</span>
+          <span className="flex-1"><b>{i.title}</b>{i.destination?.name && <span className="text-sm text-muted"> at {i.destination.name}</span>}{i.notes && <span className="block text-sm text-muted">{i.notes}</span>}</span>
+          <form action={deleteItem}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="booking_id" value={b.id} /><button className="text-sm text-muted underline" aria-label={`Remove ${i.title}`}>Remove</button></form></li>))}</ul></div>)) : <p className="mt-2 text-muted">Nothing planned yet. Add the first activity below.</p>}
+        {open && <form action={addItem} className="mt-5 grid gap-2 border-t border-line pt-4 sm:grid-cols-6"><input type="hidden" name="booking_id" value={b.id} />
+          <div><label className="label" htmlFor="day">Day</label><input id="day" name="day" type="number" min={1} defaultValue={1} className="field" /></div><div className="sm:col-span-2"><label className="label" htmlFor="time">Time</label><input id="time" name="time" type="time" className="field" /></div>
+          <div className="sm:col-span-3"><label className="label" htmlFor="title">Activity</label><input id="title" name="title" required className="field" /></div>
+          <div className="sm:col-span-3"><label className="label" htmlFor="destination_id">Destination</label><select id="destination_id" name="destination_id" className="field"><option value="">None</option>{(dests ?? []).map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
+          <div className="sm:col-span-3"><label className="label" htmlFor="notes">Notes</label><input id="notes" name="notes" className="field" /></div><button className="btn btn-clay sm:col-span-6">Add to itinerary</button></form>}</section>
+      <section className="panel flex flex-col p-5"><h2 className="text-xl">Messages</h2>
+        <ul className="my-3 flex max-h-96 flex-1 flex-col gap-2 overflow-y-auto">{(msgs ?? []).map((m: any) => (<li key={m.id} className={`max-w-[80%] rounded-xl px-3 py-2 ${m.sender_id === user.id ? 'self-end bg-[var(--clay)] text-[var(--clay-ink)]' : 'self-start bg-soft'}`}><span className="block text-xs opacity-80">{m.sender_id === user.id ? 'You' : other}, {new Date(m.created_at).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })}</span>{m.body}</li>))}
+          {!msgs?.length && <li className="text-muted">No messages yet. Say hello to {other}.</li>}</ul>
+        <form action={sendMessage} className="flex gap-2"><input type="hidden" name="booking_id" value={b.id} /><label className="sr-only" htmlFor="body">Message</label><input id="body" name="body" required maxLength={1000} placeholder="Write a message" className="field" /><button className="btn btn-clay">Send</button></form></section></div>
+    {!isProvider && b.status === 'completed' && (<section className="panel p-5"><h2 className="text-xl">Your review</h2>{review ? <p className="mt-2 flex items-center gap-1"><Star size={16} className="fill-current text-clay" />{review.rating} <span className="ml-2">{review.comment}</span></p> :
+      <form action={submitReview} className="mt-2 grid gap-2 sm:grid-cols-4"><input type="hidden" name="booking_id" value={b.id} /><input type="hidden" name="provider_id" value={b.provider_id} />
+        <div><label className="label" htmlFor="rating">Rating</label><select id="rating" name="rating" className="field">{[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n} stars</option>)}</select></div>
+        <div className="sm:col-span-3"><label className="label" htmlFor="comment">Comment</label><input id="comment" name="comment" className="field" /></div><button className="btn btn-clay sm:col-span-4 sm:justify-self-start">Submit review</button></form>}</section>)}</div>);
+}
 __MB_EOF__
 mkdir -p "app/bookings"
 cat > "app/bookings/actions.ts" <<'__MB_EOF__'
@@ -103,7 +213,7 @@ export default async function Bookings({ searchParams: sp }: { searchParams: { t
       <div className="min-w-0 flex-1"><b>{provider ? b.traveler?.full_name : b.provider?.profiles?.full_name}</b><span className="ml-2 text-sm text-muted">{provider ? `${b.travelers} traveler${b.travelers > 1 ? 's' : ''}` : b.provider?.type}</span>
         <p className="text-sm">{b.start_date} to {b.end_date}</p>{b.note && <p className="text-sm text-muted">{b.note}</p>}</div>
       <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${TONE[b.status]}`}>{b.status}</span>
-      <div className="flex gap-2">{provider && b.status === 'pending' && <>{act(b.id, 'accepted', 'Accept', true)}{act(b.id, 'rejected', 'Decline')}</>}{provider && b.status === 'accepted' && act(b.id, 'completed', 'Mark completed', true)}
+      <div className="flex gap-2"><Link href={`/bookings/${b.id}`} className="btn btn-line !py-1.5">Open</Link>{provider && b.status === 'pending' && <>{act(b.id, 'accepted', 'Accept', true)}{act(b.id, 'rejected', 'Decline')}</>}{provider && b.status === 'accepted' && act(b.id, 'completed', 'Mark completed', true)}
         {!provider && ['pending', 'accepted'].includes(b.status) && act(b.id, 'cancelled', 'Cancel')}</div></li>))}
       {!rows.length && <li className="p-6 text-muted">{history ? 'No past bookings yet.' : 'Nothing active right now.'}</li>}</ul></div>);
 }
@@ -115,11 +225,11 @@ import { redirect } from 'next/navigation';
 import { BadgeCheck, Star } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-import { SERVICES } from '@/lib/services';
+import { SERVICES, landing } from '@/lib/services';
 import Icon from '@/components/Icon';
 import DestCard from '@/components/DestCard';
 export default async function Dashboard() {
-  const { user, profile } = await getSession(); if (!user) redirect('/login'); if (profile?.role !== 'traveler') redirect('/bookings');
+  const { user, profile } = await getSession(); if (!user) redirect('/login'); if (profile?.role !== 'traveler') redirect(landing(profile?.role));
   const supabase = createClient(); const today = new Date().toISOString().slice(0, 10);
   const [{ data: next }, { data: dests }, { data: top }] = await Promise.all([
     supabase.from('bookings').select('id,start_date,end_date,status,provider:provider_profiles(profiles(full_name))').in('status', ['pending', 'accepted']).gte('end_date', today).order('start_date').limit(1),
@@ -223,6 +333,32 @@ export default function Login({ searchParams }: { searchParams: { next?: string;
     <p className="mt-5 text-sm">New traveler? <Link className="font-semibold text-clay underline" href="/signup">Create an account</Link>. Guide or driver? <Link className="font-semibold text-clay underline" href="/join">Apply here</Link>.</p></div></div>);
 }
 __MB_EOF__
+mkdir -p "app/notifications"
+cat > "app/notifications/actions.ts" <<'__MB_EOF__'
+'use server';
+import { revalidatePath } from 'next/cache';
+import { createClient } from '@/lib/supabase/server';
+export async function markRead(fd: FormData) { const s = createClient(); const { data: { user } } = await s.auth.getUser(); if (!user) return; const id = Number(fd.get('id'));
+  await (id ? s.from('notifications').update({ read: true }).eq('id', id) : s.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false)); revalidatePath('/notifications'); }
+__MB_EOF__
+mkdir -p "app/notifications"
+cat > "app/notifications/page.tsx" <<'__MB_EOF__'
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/server';
+import AutoRefresh from '@/components/AutoRefresh';
+import { markRead } from './actions';
+export default async function Notifications() {
+  const { user } = await getSession(); if (!user) redirect('/login?next=/notifications');
+  const { data } = await createClient().from('notifications').select('*').order('created_at', { ascending: false }).limit(50); const list: any[] = data ?? []; const unread = list.filter((n) => !n.read).length;
+  return (<div className="space-y-4"><AutoRefresh seconds={15} /><div className="flex flex-wrap items-center justify-between gap-2"><h1 className="text-3xl">Notifications</h1>{unread > 0 && <form action={markRead}><button className="btn btn-line">Mark all {unread} as read</button></form>}</div>
+    <ul className="panel divide-y divide-line">{list.map((n) => (<li key={n.id} className={`flex items-center gap-3 p-4 ${n.read ? '' : 'bg-soft font-medium'}`}><span className={`h-2.5 w-2.5 shrink-0 rounded-full ${n.read ? 'bg-transparent' : 'bg-[var(--clay)]'}`} aria-label={n.read ? 'Read' : 'Unread'} />
+      <span className="flex-1">{n.link ? <Link href={n.link} className="underline-offset-4 hover:underline">{n.body}</Link> : n.body}<span className="block text-xs font-normal text-muted">{new Date(n.created_at).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })}</span></span>
+      {!n.read && <form action={markRead}><input type="hidden" name="id" value={n.id} /><button className="text-sm underline">Mark read</button></form>}</li>))}
+      {!list.length && <li className="p-6 text-muted">You are all caught up.</li>}</ul></div>);
+}
+__MB_EOF__
 mkdir -p "app"
 cat > "app/page.tsx" <<'__MB_EOF__'
 import Link from 'next/link';
@@ -263,6 +399,62 @@ export default async function Home() {
     <section><div className="flex items-end justify-between"><h2 className="text-3xl">Places to go</h2><Link href="/destinations" className="font-semibold text-clay underline underline-offset-4">See all destinations</Link></div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{(dests ?? []).map((d: any) => <DestCard key={d.id} d={d} />)}</div></section>
   </div>);
+}
+__MB_EOF__
+mkdir -p "app/provider"
+cat > "app/provider/actions.ts" <<'__MB_EOF__'
+'use server';
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { SERVICES } from '@/lib/services';
+async function ctx() { const s = createClient(); const { data: { user } } = await s.auth.getUser(); if (!user) redirect('/login'); return { s, user }; }
+export async function saveProfile(fd: FormData) {
+  const { s, user } = await ctx(); const keys = SERVICES.map((x) => x.key);
+  const { error } = await s.from('provider_profiles').update({ bio: String(fd.get('bio') ?? '').slice(0, 600), county: String(fd.get('county') ?? '').slice(0, 60), languages: String(fd.get('languages') ?? '').slice(0, 120),
+    rate_usd: Math.max(0, Number(fd.get('rate')) || 0), vehicle: String(fd.get('vehicle') ?? '').slice(0, 120), license_no: String(fd.get('license_no') ?? '').slice(0, 60), services: fd.getAll('services').map(String).filter((k) => keys.includes(k)) }).eq('id', user.id);
+  revalidatePath('/provider'); redirect(error ? `/provider?error=${encodeURIComponent(error.message)}` : '/provider?saved=1');
+}
+export async function addBlock(fd: FormData) {
+  const { s, user } = await ctx(); const a = String(fd.get('start')); const b = String(fd.get('end'));
+  if (!a || !b || b < a) redirect('/provider?error=' + encodeURIComponent('Choose a start date and an end date that is not earlier.'));
+  const { error } = await s.from('availability_blocks').insert({ provider_id: user.id, start_date: a, end_date: b, reason: String(fd.get('reason') ?? '').slice(0, 100) });
+  revalidatePath('/provider'); redirect(error ? `/provider?error=${encodeURIComponent(error.message)}` : '/provider');
+}
+export async function removeBlock(fd: FormData) { const { s } = await ctx(); await s.from('availability_blocks').delete().eq('id', Number(fd.get('id'))); revalidatePath('/provider'); redirect('/provider'); }
+__MB_EOF__
+mkdir -p "app/provider"
+cat > "app/provider/page.tsx" <<'__MB_EOF__'
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { BadgeCheck } from 'lucide-react';
+import { getSession } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/server';
+import { SERVICES, landing } from '@/lib/services';
+import { saveProfile, addBlock, removeBlock } from './actions';
+export default async function ProviderHome({ searchParams: sp }: { searchParams: { saved?: string; error?: string } }) {
+  const { user, profile } = await getSession(); if (!user) redirect('/login?next=/provider'); if (profile?.role !== 'guide' && profile?.role !== 'driver') redirect(landing(profile?.role));
+  const supabase = createClient(); const today = new Date().toISOString().slice(0, 10);
+  const [{ data: p }, { data: bookings }, { data: blocks }] = await Promise.all([supabase.from('provider_profiles').select('*').eq('id', user.id).single(),
+    supabase.from('bookings').select('status,end_date').eq('provider_id', user.id), supabase.from('availability_blocks').select('*').eq('provider_id', user.id).gte('end_date', today).order('start_date')]);
+  const pending = (bookings ?? []).filter((b: any) => b.status === 'pending').length; const upcoming = (bookings ?? []).filter((b: any) => b.status === 'accepted' && b.end_date >= today).length;
+  return (<div className="space-y-6"><h1 className="text-3xl">Welcome, {String(profile.full_name).split(' ')[0]}</h1>
+    {sp.saved && <p role="status" className="rounded-lg border border-forest bg-forest/10 px-3 py-2 text-sm">Profile saved.</p>}{sp.error && <p role="alert" className="rounded-lg border border-[#b3261e] bg-[#b3261e]/10 px-3 py-2 text-sm">{sp.error}</p>}
+    <div className="grid gap-4 sm:grid-cols-3">{[['Pending requests', pending, '/bookings'], ['Upcoming trips', upcoming, '/bookings'], ['Rating', p?.rating_count ? `${p.rating_avg} (${p.rating_count})` : 'No reviews yet', `/providers/${user.id}`]].map(([l, v, h]) => (
+      <Link key={String(l)} href={String(h)} className="panel p-4 hover:bg-soft"><span className="text-sm text-muted">{l}</span><span className="block font-display text-3xl">{v}</span></Link>))}</div>
+    <section className={`panel flex items-center gap-3 p-4 ${p?.verified ? 'border-forest' : ''}`}>{p?.verified ? <><BadgeCheck className="text-forest" />Your profile is verified.</> : <>Verification pending. An administrator will check licence number <b>{p?.license_no || '(not entered)'}</b>. Changing it later resets verification.</>}</section>
+    <div className="grid gap-6 lg:grid-cols-3">
+      <form action={saveProfile} className="panel space-y-3 p-5 lg:col-span-2"><h2 className="text-xl">Your public profile</h2>
+        <div className="grid gap-3 sm:grid-cols-2"><div><label className="label" htmlFor="county">County</label><input id="county" name="county" defaultValue={p?.county} className="field" /></div><div><label className="label" htmlFor="languages">Languages</label><input id="languages" name="languages" defaultValue={p?.languages} className="field" /></div>
+          <div><label className="label" htmlFor="rate">Daily rate (USD)</label><input id="rate" name="rate" type="number" min={0} defaultValue={p?.rate_usd} className="field" /></div><div><label className="label" htmlFor="license_no">Licence number</label><input id="license_no" name="license_no" defaultValue={p?.license_no} className="field" /></div>
+          {p?.type === 'driver' && <div className="sm:col-span-2"><label className="label" htmlFor="vehicle">Vehicle</label><input id="vehicle" name="vehicle" defaultValue={p?.vehicle} className="field" /></div>}</div>
+        <fieldset><legend className="label">Services</legend><div className="flex flex-wrap gap-x-4 gap-y-1">{SERVICES.map((s) => <label key={s.key} className="flex items-center gap-2 text-sm"><input type="checkbox" name="services" value={s.key} defaultChecked={(p?.services ?? []).includes(s.key)} />{s.label}</label>)}</div></fieldset>
+        <div><label className="label" htmlFor="bio">Bio</label><textarea id="bio" name="bio" rows={4} defaultValue={p?.bio} className="field" /></div><button className="btn btn-clay">Save profile</button></form>
+      <section className="panel space-y-3 p-5"><h2 className="text-xl">Days you are unavailable</h2>
+        <ul className="divide-y divide-line">{(blocks ?? []).map((b: any) => (<li key={b.id} className="flex items-center justify-between gap-2 py-2 text-sm"><span>{b.start_date} to {b.end_date}{b.reason && <span className="block text-muted">{b.reason}</span>}</span>
+          <form action={removeBlock}><input type="hidden" name="id" value={b.id} /><button className="underline">Remove</button></form></li>))}{!blocks?.length && <li className="py-2 text-sm text-muted">No blocked dates. Travelers can request any day that is not already booked.</li>}</ul>
+        <form action={addBlock} className="space-y-2 border-t border-line pt-3"><div className="grid grid-cols-2 gap-2"><div><label className="label" htmlFor="start">From</label><input id="start" name="start" type="date" min={today} required className="field" /></div><div><label className="label" htmlFor="end">To</label><input id="end" name="end" type="date" min={today} required className="field" /></div></div>
+          <input name="reason" placeholder="Reason (optional)" className="field" /><button className="btn btn-line w-full">Block these dates</button></form></section></div></div>);
 }
 __MB_EOF__
 mkdir -p "app/providers/[id]"
@@ -371,6 +563,17 @@ export default function Signup() {
 }
 __MB_EOF__
 mkdir -p "components"
+cat > "components/AutoRefresh.tsx" <<'__MB_EOF__'
+'use client';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+export default function AutoRefresh({ seconds = 10 }: { seconds?: number }) {
+  const router = useRouter();
+  useEffect(() => { const t = setInterval(() => { if (!document.hidden) router.refresh(); }, seconds * 1000); return () => clearInterval(t); }, [router, seconds]);
+  return null;
+}
+__MB_EOF__
+mkdir -p "components"
 cat > "components/DestCard.tsx" <<'__MB_EOF__'
 import Link from 'next/link';
 import { wikiImage } from '@/lib/wiki';
@@ -439,10 +642,10 @@ export default function ProviderWizard({ role }: { role: 'guide' | 'driver' }) {
   const valid = () => { const box = form.current!.querySelectorAll('[data-step="' + step + '"] input, [data-step="' + step + '"] textarea'); for (const el of Array.from(box) as HTMLInputElement[]) if (!el.checkValidity()) { el.reportValidity(); return false; } return true; };
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (!valid()) return; setBusy(true); setErr(''); const f = new FormData(form.current!);
-    const { data, error } = await createClient().auth.signUp({ email: String(f.get('email')).trim(), password: String(f.get('password')), options: { emailRedirectTo: `${location.origin}/auth/callback?next=/bookings`, data: {
+    const { data, error } = await createClient().auth.signUp({ email: String(f.get('email')).trim(), password: String(f.get('password')), options: { emailRedirectTo: `${location.origin}/auth/callback?next=/provider`, data: {
       role, full_name: f.get('name'), county: f.get('county'), languages: f.get('languages'), rate: f.get('rate'), license_no: f.get('license_no'), vehicle: f.get('vehicle') ?? '', bio: f.get('bio') ?? '', services: f.getAll('services').join(',') } } });
     setBusy(false); if (error) return setErr(error.message);
-    if (data.session) { router.replace('/bookings'); router.refresh(); } else setDone(true);
+    if (data.session) { router.replace('/provider'); router.refresh(); } else setDone(true);
   }
   if (done) return <p role="status" className="panel p-5">Application received. Confirm your email using the link we sent, then log in. An administrator will review your licence number before the Verified badge appears.</p>;
   return (<form ref={form} onSubmit={submit} className="panel space-y-4 p-6">
@@ -472,9 +675,12 @@ export default async function Shell({ children }: { children: React.ReactNode })
     <p className="mt-2">Copy <code>.env.local.example</code> to <code>.env.local</code>, paste your project URL and anon key from Supabase (Project Settings, API), then restart <code>npm run dev</code>.</p></div></main>);
   const { user, profile } = await getSession();
   const role = profile?.role;
+  const bell = { href: '/notifications', label: 'Notifications', icon: 'Bell' };
   const items = role === 'traveler'
-    ? [{ href: '/dashboard', label: 'Explore home', icon: 'Compass' }, { href: '/destinations', label: 'Destinations', icon: 'Map' }, { href: '/providers', label: 'Guides and drivers', icon: 'Search' }, { href: '/bookings', label: 'My bookings', icon: 'CalendarCheck' }]
-    : [{ href: '/bookings', label: 'Booking requests', icon: 'CalendarCheck' }, { href: '/destinations', label: 'Destinations', icon: 'Map' }];
+    ? [{ href: '/dashboard', label: 'Explore home', icon: 'Compass' }, { href: '/destinations', label: 'Destinations', icon: 'Map' }, { href: '/providers', label: 'Guides and drivers', icon: 'Search' }, { href: '/bookings', label: 'My bookings', icon: 'CalendarCheck' }, bell]
+    : role === 'admin'
+      ? [{ href: '/admin', label: 'Administration', icon: 'ShieldCheck' }, { href: '/providers', label: 'Guides and drivers', icon: 'Search' }, { href: '/destinations', label: 'Destinations', icon: 'Map' }]
+      : [{ href: '/provider', label: 'Dashboard', icon: 'LayoutDashboard' }, { href: '/bookings', label: 'Booking requests', icon: 'CalendarCheck' }, bell];
   return (
     <div className="flex min-h-screen">
       {user && <Sidebar items={items} />}
@@ -500,8 +706,8 @@ cat > "components/Sidebar.tsx" <<'__MB_EOF__'
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { CalendarCheck, ChevronsLeft, Compass, Map, Search } from 'lucide-react';
-const ICONS: Record<string, any> = { Compass, Map, Search, CalendarCheck };
+import { Bell, CalendarCheck, ChevronsLeft, Compass, LayoutDashboard, Map, Search, ShieldCheck } from 'lucide-react';
+const ICONS: Record<string, any> = { Compass, Map, Search, CalendarCheck, Bell, LayoutDashboard, ShieldCheck };
 export default function Sidebar({ items }: { items: { href: string; label: string; icon: string }[] }) {
   const path = usePathname(); const [open, setOpen] = useState(true);
   useEffect(() => setOpen(localStorage.getItem('side') !== 'collapsed'), []);
@@ -585,7 +791,7 @@ export const SERVICES = [
 ];
 export const COMING_SOON = ['Accommodation', 'Park and event tickets', 'Car hire', 'Travel insurance'];
 export const CATEGORY_TINT: Record<string, string> = { Safari: '#a8461f', Beach: '#0b4f6c', Mountain: '#1b3a4b', Lake: '#14506b', Culture: '#4a2511', City: '#243b53', Forest: '#17402b' };
-export const landing = (role?: string | null) => (role === 'traveler' ? '/dashboard' : '/bookings');
+export const landing = (role?: string | null) => (role === 'traveler' ? '/dashboard' : role === 'admin' ? '/admin' : '/provider');
 export const safeNext = (n?: string | null) => (n && n.startsWith('/') && !n.startsWith('//') ? n : null);
 __MB_EOF__
 mkdir -p "lib/supabase"
@@ -599,7 +805,7 @@ cat > "lib/supabase/middleware.ts" <<'__MB_EOF__'
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { SUPABASE_URL, SUPABASE_KEY, hasEnv } from '@/lib/env';
-const PROTECTED = ['/dashboard', '/providers', '/bookings'];
+const PROTECTED = ['/dashboard', '/providers', '/bookings', '/notifications', '/provider', '/admin'];
 export async function updateSession(req: NextRequest) {
   let res = NextResponse.next({ request: req });
   if (!hasEnv()) return res;
@@ -674,6 +880,37 @@ git add -A
 if git diff --cached --quiet; then echo "No changes to commit."; else git commit -m "$MSG"; fi
 git pull --rebase origin main || { echo "Pull had conflicts. Resolve them, then run again."; exit 1; }
 git push -u origin main && echo "Pushed to GitHub ✔"
+__MB_EOF__
+mkdir -p "supabase"
+cat > "supabase/002_modules.sql" <<'__MB_EOF__'
+-- Mtalii Bora — migration 2 (run AFTER schema.sql, in the Supabase SQL Editor).
+-- Adds provider-set unavailable dates, message notifications, and tighter itinerary rules.
+create table availability_blocks(id bigserial primary key, provider_id uuid not null references provider_profiles(id) on delete cascade,
+  start_date date not null, end_date date not null check (end_date >= start_date), reason text default '', created_at timestamptz default now());
+alter table availability_blocks enable row level security;
+create policy "blocks read" on availability_blocks for select to authenticated using (true);
+create policy "blocks own write" on availability_blocks for all to authenticated using (provider_id = auth.uid()) with check (provider_id = auth.uid());
+
+create or replace function provider_busy(pid uuid) returns table(start_date date, end_date date) language sql stable security definer set search_path = public as $$
+  select b.start_date, b.end_date from bookings b where b.provider_id = pid and b.status = 'accepted' and b.end_date >= current_date
+  union all select a.start_date, a.end_date from availability_blocks a where a.provider_id = pid and a.end_date >= current_date $$;
+create or replace function providers_busy_on(d date) returns setof uuid language sql stable security definer set search_path = public as $$
+  select provider_id from bookings where status = 'accepted' and d between start_date and end_date
+  union select provider_id from availability_blocks where d between start_date and end_date $$;
+
+-- itinerary: only parties of an open booking may add items
+drop policy "itinerary all" on itinerary_items;
+create policy "itinerary read" on itinerary_items for select to authenticated using (is_party(booking_id));
+create policy "itinerary add" on itinerary_items for insert to authenticated with check (is_party(booking_id) and exists(select 1 from bookings b where b.id = booking_id and b.status in ('pending','accepted','completed')));
+create policy "itinerary delete" on itinerary_items for delete to authenticated using (is_party(booking_id));
+
+-- notify the other person when a message arrives
+create function on_message() returns trigger language plpgsql security definer set search_path = public as $$
+declare b bookings;
+begin select * into b from bookings where id = new.booking_id;
+  insert into notifications(user_id, body, link) values (case when new.sender_id = b.traveler_id then b.provider_id else b.traveler_id end, 'New message on booking #' || b.id, '/bookings/' || b.id);
+  return new; end $$;
+create trigger message_after after insert on messages for each row execute function on_message();
 __MB_EOF__
 mkdir -p "supabase"
 cat > "supabase/schema.sql" <<'__MB_EOF__'

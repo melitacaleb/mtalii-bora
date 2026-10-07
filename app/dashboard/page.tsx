@@ -3,11 +3,11 @@ import { redirect } from 'next/navigation';
 import { BadgeCheck, Star } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-import { SERVICES } from '@/lib/services';
+import { SERVICES, landing } from '@/lib/services';
 import Icon from '@/components/Icon';
 import DestCard from '@/components/DestCard';
 export default async function Dashboard() {
-  const { user, profile } = await getSession(); if (!user) redirect('/login'); if (profile?.role !== 'traveler') redirect('/bookings');
+  const { user, profile } = await getSession(); if (!user) redirect('/login'); if (profile?.role !== 'traveler') redirect(landing(profile?.role));
   const supabase = createClient(); const today = new Date().toISOString().slice(0, 10);
   const [{ data: next }, { data: dests }, { data: top }] = await Promise.all([
     supabase.from('bookings').select('id,start_date,end_date,status,provider:provider_profiles(profiles(full_name))').in('status', ['pending', 'accepted']).gte('end_date', today).order('start_date').limit(1),

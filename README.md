@@ -3,7 +3,7 @@ Verified tour guides and safari drivers in Kenya: search, availability, booking 
 
 ## 1. Supabase (one time)
 1. Create a project at supabase.com.
-2. SQL Editor: paste and run `supabase/schema.sql` (tables, security rules, Kenya destinations).
+2. SQL Editor: run `supabase/schema.sql` (tables, security rules, Kenya destinations), then run `supabase/002_modules.sql` (unavailable dates, message notifications).
 3. Authentication > URL Configuration: Site URL `http://localhost:3000`, add redirect URL `http://localhost:3000/auth/callback`.
 4. For quick local testing, Authentication > Providers > Email: turn off "Confirm email" (otherwise users must click the email link).
 5. Google sign-in: Authentication > Providers > Google. Create an OAuth client in Google Cloud (Web application) with redirect URI `https://YOUR-REF.supabase.co/auth/v1/callback`, then paste the client ID and secret into Supabase.

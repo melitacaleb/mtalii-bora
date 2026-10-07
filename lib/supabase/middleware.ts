@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { SUPABASE_URL, SUPABASE_KEY, hasEnv } from '@/lib/env';
-const PROTECTED = ['/dashboard', '/providers', '/bookings'];
+const PROTECTED = ['/dashboard', '/providers', '/bookings', '/notifications', '/provider', '/admin'];
 export async function updateSession(req: NextRequest) {
   let res = NextResponse.next({ request: req });
   if (!hasEnv()) return res;

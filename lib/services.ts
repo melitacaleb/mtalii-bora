@@ -8,5 +8,5 @@ export const SERVICES = [
 ];
 export const COMING_SOON = ['Accommodation', 'Park and event tickets', 'Car hire', 'Travel insurance'];
 export const CATEGORY_TINT: Record<string, string> = { Safari: '#a8461f', Beach: '#0b4f6c', Mountain: '#1b3a4b', Lake: '#14506b', Culture: '#4a2511', City: '#243b53', Forest: '#17402b' };
-export const landing = (role?: string | null) => (role === 'traveler' ? '/dashboard' : '/bookings');
+export const landing = (role?: string | null) => (role === 'traveler' ? '/dashboard' : role === 'admin' ? '/admin' : '/provider');
 export const safeNext = (n?: string | null) => (n && n.startsWith('/') && !n.startsWith('//') ? n : null);
